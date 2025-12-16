@@ -1,14 +1,15 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
-tg.ready();
+tg.ready(); // Qo'shimcha: WebApp tayyorligini bildirish
 
 let answers = {};
 let testCodeValue = "";
 let isAdminMode = false;
 
-const validCodes = ["MT-2025-01", "MT-2025-02"]; // Backenddan keladi
+// Valid kodlar — har ikki rejimda ham mavjud bo'lishi kerak
+const validCodes = ["MT-2025-01", "MT-2025-02"]; // Keyin backenddan keladi
 
-// URL parametrlaridan rejimni olish
+// URL parametrlaridan rejimni olish (masalan, ?mode=admin)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('mode') === 'admin') {
     isAdminMode = true;
@@ -17,10 +18,11 @@ if (urlParams.get('mode') === 'admin') {
     document.getElementById('test-box').classList.remove('hidden');
     document.getElementById('submitButton').innerText = 'Saqlash';
     
-    generateNewCode();
-    generateTest();
+    generateNewCode();   // Yangi kod generatsiya
+    generateTest();      // Testni yaratish
 } else {
-    // User rejimi
+    // User rejimi — kod kiritish sahifasi ko'rinadi
+    // Inputga avto-fokus qo'yish (telefonda klaviatura chiqishi uchun)
     setTimeout(() => {
         const input = document.getElementById('testCode');
         if (input) input.focus();
@@ -29,7 +31,7 @@ if (urlParams.get('mode') === 'admin') {
 
 function generateNewCode() {
     const year = new Date().getFullYear();
-    const randomNum = Math.floor(100 + Math.random() * 900);
+    const randomNum = Math.floor(Math.random() * 99) + 1; // 1-99 oralig'i, 2 raqamli format uchun
     testCodeValue = `MT-${year}-${randomNum.toString().padStart(2, '0')}`;
     document.getElementById('generatedCode').value = testCodeValue;
 }
@@ -43,6 +45,7 @@ function checkCode() {
         return;
     }
     
+    // Kodni katta harfga aylantirib tekshirish (foydalanuvchi xato yozmasin)
     if (!validCodes.includes(code)) {
         error.innerText = "❌ Bunday test kodi mavjud emas";
         return;
@@ -58,28 +61,29 @@ function checkCode() {
 function generateTest() {
     const container = document.getElementById("test-container");
     container.innerHTML = "";
+    const titleSuffix = isAdminMode ? " (to'g'ri javob)" : "";
 
     // 1–32 savol: A–D variantli
     for (let i = 1; i <= 32; i++) {
-        createClosed(i, ["A", "B", "C", "D"]);
+        createClosed(i, ["A", "B", "C", "D"], titleSuffix);
     }
     
     // 33–35 savol: A–F variantli
     for (let i = 33; i <= 35; i++) {
-        createClosed(i, ["A", "B", "C", "D", "E", "F"]);
+        createClosed(i, ["A", "B", "C", "D", "E", "F"], titleSuffix);
     }
     
     // 36–45 ochiq savollar (a va b qismli)
     for (let i = 36; i <= 45; i++) {
-        createOpen(i);
+        createOpen(i, titleSuffix);
     }
 }
 
-function createClosed(num, options) {
+function createClosed(num, options, suffix) {
     const div = document.createElement("div");
     div.className = "question";
     div.innerHTML = `
-        <div class="q-title">${num}.</div>
+        <div class="q-title">${num}.${suffix}</div>
         <div class="options">
             ${options.map(o => 
                 `<div class="option" onclick="selectClosed(${num}, '${o}', this)">${o}</div>`
@@ -91,18 +95,19 @@ function createClosed(num, options) {
 
 function selectClosed(num, value, el) {
     answers[num] = value;
+    // Faqat shu savol ichidagi variantlarni tozalash
     el.parentElement.querySelectorAll(".option").forEach(b => b.classList.remove("active"));
     el.classList.add("active");
 }
 
-function createOpen(num) {
+function createOpen(num, suffix) {
     const div = document.createElement("div");
     div.className = "question";
     div.innerHTML = `
-        <div class="q-title">${num}-savol (a)</div>
+        <div class="q-title">${num}-savol (a)${suffix}</div>
         <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'a', this.value)">
         
-        <div class="q-title">${num}-savol (b)</div>
+        <div class="q-title">${num}-savol (b)${suffix}</div>
         <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'b', this.value)">
     `;
     document.getElementById("test-container").appendChild(div);
@@ -135,6 +140,7 @@ function submitTest() {
         }
     }
 
+    // Ma'lumotlarni botga yuborish
     const data = {
         test_code: testCodeValue,
         answers: answers
