@@ -11,6 +11,7 @@ const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("mode") === "admin") {
     isAdminMode = true;
 
+    // Admin UI
     document.getElementById("code-box").classList.add("hidden");
     document.getElementById("admin-code-box").classList.remove("hidden");
     document.getElementById("test-box").classList.remove("hidden");
@@ -19,6 +20,7 @@ if (urlParams.get("mode") === "admin") {
     generateNewCode();
     generateTest();
 } else {
+    // User UI
     setTimeout(() => {
         const input = document.getElementById("testCode");
         if (input) input.focus();
@@ -26,7 +28,6 @@ if (urlParams.get("mode") === "admin") {
 }
 
 /* ================= ADMIN ================= */
-
 function generateNewCode() {
     const year = new Date().getFullYear();
     const randomNum = Math.floor(Math.random() * 900) + 100; // 100–999
@@ -35,7 +36,6 @@ function generateNewCode() {
 }
 
 /* ================= USER ================= */
-
 function checkCode() {
     const code = document.getElementById("testCode").value.trim().toUpperCase();
     const error = document.getElementById("codeError");
@@ -47,31 +47,23 @@ function checkCode() {
 
     error.innerText = "";
 
+    // User kodi tekshirish uchun botga yuboriladi
     tg.sendData(JSON.stringify({
         action: "check_code",
         test_code: code
     }));
 }
 
-/* ================= TEST ================= */
-
+// Admin / User uchun test yaratish
 function generateTest() {
     const container = document.getElementById("test-container");
     container.innerHTML = "";
 
     const suffix = isAdminMode ? " (to‘g‘ri javob)" : "";
 
-    for (let i = 1; i <= 32; i++) {
-        createClosed(i, ["A", "B", "C", "D"], suffix);
-    }
-
-    for (let i = 33; i <= 35; i++) {
-        createClosed(i, ["A", "B", "C", "D", "E", "F"], suffix);
-    }
-
-    for (let i = 36; i <= 45; i++) {
-        createOpen(i, suffix);
-    }
+    for (let i = 1; i <= 32; i++) createClosed(i, ["A", "B", "C", "D"], suffix);
+    for (let i = 33; i <= 35; i++) createClosed(i, ["A", "B", "C", "D", "E", "F"], suffix);
+    for (let i = 36; i <= 45; i++) createOpen(i, suffix);
 }
 
 function createClosed(num, options, suffix) {
@@ -90,8 +82,7 @@ function createClosed(num, options, suffix) {
 
 function selectClosed(num, value, el) {
     answers[num] = value;
-    el.parentElement.querySelectorAll(".option")
-        .forEach(b => b.classList.remove("active"));
+    el.parentElement.querySelectorAll(".option").forEach(b => b.classList.remove("active"));
     el.classList.add("active");
 }
 
@@ -100,14 +91,10 @@ function createOpen(num, suffix) {
     div.className = "question";
     div.innerHTML = `
         <div class="q-title">${num}-savol (a)${suffix}</div>
-        <input class="text-answer"
-               oninput="saveOpen(${num}, 'a', this.value)"
-               placeholder="Javobingizni yozing">
+        <input class="text-answer" oninput="saveOpen(${num}, 'a', this.value)" placeholder="Javobingizni yozing">
 
         <div class="q-title">${num}-savol (b)${suffix}</div>
-        <input class="text-answer"
-               oninput="saveOpen(${num}, 'b', this.value)"
-               placeholder="Javobingizni yozing">
+        <input class="text-answer" oninput="saveOpen(${num}, 'b', this.value)" placeholder="Javobingizni yozing">
     `;
     document.getElementById("test-container").appendChild(div);
 }
@@ -118,11 +105,11 @@ function saveOpen(num, part, value) {
 }
 
 /* ================= SUBMIT ================= */
-
 function submitTest() {
     const error = document.getElementById("testError");
     error.innerText = "";
 
+    // 1-35 yopiq savollar
     for (let i = 1; i <= 35; i++) {
         if (!answers[i]) {
             error.innerText = "❌ 1–35 savollarga javob bering";
@@ -131,6 +118,7 @@ function submitTest() {
         }
     }
 
+    // 36-45 ochiq savollar
     for (let i = 36; i <= 45; i++) {
         if (!answers[i] || !answers[i].a || !answers[i].b) {
             error.innerText = "❌ 36–45 savollarni to‘liq to‘ldiring";
@@ -145,9 +133,9 @@ function submitTest() {
     };
 
     if (isAdminMode) {
-        payload.mode = "create_test";
+        payload.mode = "create_test"; // admin test yaratadi
     } else {
-        payload.action = "submit_test";
+        payload.action = "submit_test"; // user javob yuboradi
     }
 
     tg.sendData(JSON.stringify(payload));
