@@ -11,7 +11,6 @@ const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("mode") === "admin") {
     isAdminMode = true;
 
-    // Admin UI
     document.getElementById("code-box").classList.add("hidden");
     document.getElementById("admin-code-box").classList.remove("hidden");
     document.getElementById("test-box").classList.remove("hidden");
@@ -20,7 +19,6 @@ if (urlParams.get("mode") === "admin") {
     generateNewCode();
     generateTest();
 } else {
-    // User UI
     setTimeout(() => {
         const input = document.getElementById("testCode");
         if (input) input.focus();
@@ -46,15 +44,15 @@ function checkCode() {
     }
 
     error.innerText = "";
+    testCodeValue = code;
 
-    // User kodi tekshirish uchun botga yuboriladi
-    tg.sendData(JSON.stringify({
-        action: "check_code",
-        test_code: code
-    }));
+    // Mini app orqali testni ochish
+    document.getElementById("code-box").classList.add("hidden");
+    document.getElementById("test-box").classList.remove("hidden");
+    generateTest();
 }
 
-// Admin / User uchun test yaratish
+/* ================= TEST ================= */
 function generateTest() {
     const container = document.getElementById("test-container");
     container.innerHTML = "";
@@ -109,7 +107,6 @@ function submitTest() {
     const error = document.getElementById("testError");
     error.innerText = "";
 
-    // 1-35 yopiq savollar
     for (let i = 1; i <= 35; i++) {
         if (!answers[i]) {
             error.innerText = "❌ 1–35 savollarga javob bering";
@@ -118,7 +115,6 @@ function submitTest() {
         }
     }
 
-    // 36-45 ochiq savollar
     for (let i = 36; i <= 45; i++) {
         if (!answers[i] || !answers[i].a || !answers[i].b) {
             error.innerText = "❌ 36–45 savollarni to‘liq to‘ldiring";
@@ -133,9 +129,9 @@ function submitTest() {
     };
 
     if (isAdminMode) {
-        payload.mode = "create_test"; // admin test yaratadi
+        payload.mode = "create_test";
     } else {
-        payload.action = "submit_test"; // user javob yuboradi
+        payload.action = "submit_test";
     }
 
     tg.sendData(JSON.stringify(payload));
