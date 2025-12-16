@@ -170,3 +170,11 @@ button:active {
     font-size: 14px;
     color: var(--tg-theme-hint-color, #707070);
 }
+
+/* Umumiy label stili (code-box uchun ham) */
+label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 8px;
+    color: var(--tg-theme-link-color, #2481cc);
+}
