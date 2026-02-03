@@ -1,15 +1,31 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Mini App</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta charset="UTF-8">
+    <title>Matematika test</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container" id="app">
-  <div id="loading">Yuklanmoqda...</div>
+<h2>🧮 Matematika test</h2>
+<!-- 1-bosqich: kod (faqat user rejimida) -->
+<div class="container" id="code-box">
+    <label>Test kodi</label>
+    <input id="testCode" placeholder="Masalan: MT-2025-01">
+    <button onclick="checkCode()">Davom etish</button>
+    <div class="error" id="codeError"></div>
+</div>
+<!-- Admin rejimida generatsiya qilingan kod ko'rsatiladi -->
+<div class="container hidden" id="admin-code-box">
+    <label>Yangi test kodi</label>
+    <input id="generatedCode" readonly>
+    <div class="info">Bu kodni foydalanuvchilarga yuboring.</div>
+</div>
+<!-- 2-bosqich: test -->
+<div class="container hidden" id="test-box">
+    <div id="test-container"></div>
+    <button id="submitButton" onclick="submitTest()">Tekshirish</button>
+    <div class="error" id="testError"></div>
 </div>
 <script src="script.js"></script>
 </body>
