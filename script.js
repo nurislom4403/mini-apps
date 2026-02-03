@@ -1,82 +1,67 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
-tg.ready(); // Qo'shimcha: WebApp tayyorligini bildirish
+tg.ready();
 
 let answers = {};
 let testCodeValue = "";
 let isAdminMode = false;
 
-// Valid kodlar — har ikki rejimda ham mavjud bo'lishi kerak
-const validCodes = ["MT-2025-01", "MT-2025-02"]; // Keyin backenddan keladi
-
-// URL parametrlaridan rejimni olish (masalan, ?mode=admin)
+// URL parametrlar
 const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('mode') === 'admin') {
+if (urlParams.get("mode") === "admin") {
     isAdminMode = true;
-    document.getElementById('code-box').classList.add('hidden');
-    document.getElementById('admin-code-box').classList.remove('hidden');
-    document.getElementById('test-box').classList.remove('hidden');
-    document.getElementById('submitButton').innerText = 'Saqlash';
-    
-    generateNewCode();   // Yangi kod generatsiya
-    generateTest();      // Testni yaratish
+
+    document.getElementById("code-box").classList.add("hidden");
+    document.getElementById("admin-code-box").classList.remove("hidden");
+    document.getElementById("test-box").classList.remove("hidden");
+    document.getElementById("submitButton").innerText = "Saqlash";
+
+    generateNewCode();
+    generateTest();
 } else {
-    // User rejimi — kod kiritish sahifasi ko'rinadi
-    // Inputga avto-fokus qo'yish (telefonda klaviatura chiqishi uchun)
     setTimeout(() => {
-        const input = document.getElementById('testCode');
+        const input = document.getElementById("testCode");
         if (input) input.focus();
-    }, 600);
+    }, 500);
 }
 
+/* ================= ADMIN ================= */
 function generateNewCode() {
     const year = new Date().getFullYear();
-    const randomNum = Math.floor(100 + Math.random() * 900);
-    testCodeValue = `MT-${year}-${randomNum.toString().padStart(2, '0')}`;
-    document.getElementById('generatedCode').value = testCodeValue;
+    const randomNum = Math.floor(Math.random() * 900) + 100; // 100–999
+    testCodeValue = `MT-${year}-${randomNum}`;
+    document.getElementById("generatedCode").value = testCodeValue;
 }
 
+/* ================= USER ================= */
 function checkCode() {
     const code = document.getElementById("testCode").value.trim().toUpperCase();
     const error = document.getElementById("codeError");
-    
+
     if (!code) {
         error.innerText = "❌ Test kodini kiriting";
         return;
     }
-    
-    // Kodni katta harfga aylantirib tekshirish (foydalanuvchi xato yozmasin)
-    if (!validCodes.includes(code)) {
-        error.innerText = "❌ Bunday test kodi mavjud emas";
-        return;
-    }
-    
+
     error.innerText = "";
     testCodeValue = code;
+
+    // Mini app orqali testni ochish
     document.getElementById("code-box").classList.add("hidden");
     document.getElementById("test-box").classList.remove("hidden");
     generateTest();
 }
 
+/* ================= TEST ================= */
 function generateTest() {
     const container = document.getElementById("test-container");
     container.innerHTML = "";
-    const titleSuffix = isAdminMode ? " (to'g'ri javob)" : "";
 
-    // 1–32 savol: A–D variantli
-    for (let i = 1; i <= 32; i++) {
-        createClosed(i, ["A", "B", "C", "D"], titleSuffix);
-    }
-    
-    // 33–35 savol: A–F variantli
-    for (let i = 33; i <= 35; i++) {
-        createClosed(i, ["A", "B", "C", "D", "E", "F"], titleSuffix);
-    }
-    
-    // 36–45 ochiq savollar (a va b qismli)
-    for (let i = 36; i <= 45; i++) {
-        createOpen(i, titleSuffix);
-    }
+    const suffix = isAdminMode ? " (to‘g‘ri javob)" : "";
+
+    for (let i = 1; i <= 32; i++) createClosed(i, ["A", "B", "C", "D"], suffix);
+    for (let i = 33; i <= 35; i++) createClosed(i, ["A", "B", "C", "D", "E", "F"], suffix);
+    for (let i = 36; i <= 45; i++) createOpen(i, suffix);
 }
 
 function createClosed(num, options, suffix) {
@@ -85,7 +70,7 @@ function createClosed(num, options, suffix) {
     div.innerHTML = `
         <div class="q-title">${num}.${suffix}</div>
         <div class="options">
-            ${options.map(o => 
+            ${options.map(o =>
                 `<div class="option" onclick="selectClosed(${num}, '${o}', this)">${o}</div>`
             ).join("")}
         </div>
@@ -95,7 +80,6 @@ function createClosed(num, options, suffix) {
 
 function selectClosed(num, value, el) {
     answers[num] = value;
-    // Faqat shu savol ichidagi variantlarni tozalash
     el.parentElement.querySelectorAll(".option").forEach(b => b.classList.remove("active"));
     el.classList.add("active");
 }
@@ -105,10 +89,10 @@ function createOpen(num, suffix) {
     div.className = "question";
     div.innerHTML = `
         <div class="q-title">${num}-savol (a)${suffix}</div>
-        <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'a', this.value)">
-        
+        <input class="text-answer" oninput="saveOpen(${num}, 'a', this.value)" placeholder="Javobingizni yozing">
+
         <div class="q-title">${num}-savol (b)${suffix}</div>
-        <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'b', this.value)">
+        <input class="text-answer" oninput="saveOpen(${num}, 'b', this.value)" placeholder="Javobingizni yozing">
     `;
     document.getElementById("test-container").appendChild(div);
 }
@@ -118,38 +102,38 @@ function saveOpen(num, part, value) {
     answers[num][part] = value.trim();
 }
 
+/* ================= SUBMIT ================= */
 function submitTest() {
     const error = document.getElementById("testError");
     error.innerText = "";
 
-    // 1-35 savollar to'ldirilganmi?
     for (let i = 1; i <= 35; i++) {
         if (!answers[i]) {
-            error.innerText = "❌ 1-35 savollarga javob bering";
-            error.scrollIntoView({ behavior: "smooth" });
-            return;
-        }
-    }
-    
-    // 36-45 savollar to'ldirilganmi?
-    for (let i = 36; i <= 45; i++) {
-        if (!answers[i] || !answers[i].a?.trim() || !answers[i].b?.trim()) {
-            error.innerText = "❌ 36-45 savollarni to'liq to'ldiring";
+            error.innerText = "❌ 1–35 savollarga javob bering";
             error.scrollIntoView({ behavior: "smooth" });
             return;
         }
     }
 
-    // Ma'lumotlarni botga yuborish
-    const data = {
+    for (let i = 36; i <= 45; i++) {
+        if (!answers[i] || !answers[i].a || !answers[i].b) {
+            error.innerText = "❌ 36–45 savollarni to‘liq to‘ldiring";
+            error.scrollIntoView({ behavior: "smooth" });
+            return;
+        }
+    }
+
+    const payload = {
         test_code: testCodeValue,
         answers: answers
     };
-    
+
     if (isAdminMode) {
-        data.mode = 'create_test';
+        payload.mode = "create_test";
+    } else {
+        payload.action = "submit_test";
     }
-    
-    tg.sendData(JSON.stringify(data));
+
+    tg.sendData(JSON.stringify(payload));
     tg.close();
 }
