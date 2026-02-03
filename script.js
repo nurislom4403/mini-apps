@@ -1,139 +1,246 @@
 const tg = window.Telegram.WebApp;
-tg.expand();
 tg.ready();
+tg.expand();
 
-let answers = {};
-let testCodeValue = "";
-let isAdminMode = false;
+const BACKEND_URL = "https://your-backend-domain.com";  
+// ↑↑↑ O‘Z SERVER URL’INGIZNI BU YERGA YOZING !!!
 
-// URL parametrlar
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get("mode") === "admin") {
-    isAdminMode = true;
+let currentTestId = null;
+let currentTestCode = null;
+let questions = [];
 
-    document.getElementById("code-box").classList.add("hidden");
-    document.getElementById("admin-code-box").classList.remove("hidden");
-    document.getElementById("test-box").classList.remove("hidden");
-    document.getElementById("submitButton").innerText = "Saqlash";
+// Dastlabki ishga tushirish
+async function init() {
+  document.getElementById("loading").innerText = "Telegram ma'lumotlari tekshirilmoqda...";
 
-    generateNewCode();
-    generateTest();
-} else {
-    setTimeout(() => {
-        const input = document.getElementById("testCode");
-        if (input) input.focus();
-    }, 500);
+  // Admin ekanligini tekshirish (hozircha username orqali – o‘zgartirish kerak!)
+  const isAdmin = tg.initDataUnsafe.user?.username === "sizning_admin_username"; // ← BU YERNI O‘ZGARTIR!
+
+  if (isAdmin) {
+    renderAdminPanel();
+  } else {
+    renderEnterCodePage();
+  }
 }
 
-/* ================= ADMIN ================= */
-function generateNewCode() {
-    const year = new Date().getFullYear();
-    const randomNum = Math.floor(Math.random() * 900) + 100; // 100–999
-    testCodeValue = `MT-${year}-${randomNum}`;
-    document.getElementById("generatedCode").value = testCodeValue;
+function showLoading(text = "Yuklanmoqda...") {
+  document.getElementById("app").innerHTML = `<div id="loading">${text}</div>`;
 }
 
-/* ================= USER ================= */
-function checkCode() {
-    const code = document.getElementById("testCode").value.trim().toUpperCase();
-    const error = document.getElementById("codeError");
+function renderAdminPanel() {
+  document.getElementById("app").innerHTML = `
+    <h1>Admin Panel</h1>
+    <h2>Yangi test yaratish</h2>
+    <button onclick="startCreateMilliy()">Milliy sertifikat testi</button>
+    <button onclick="startCreateOddiy()">Oddiy test</button>
+    <br><br>
+    <button class="secondary" onclick="viewStats()">Statistikani ko'rish</button>
+  `;
+}
 
-    if (!code) {
-        error.innerText = "❌ Test kodini kiriting";
-        return;
+async function startCreateMilliy() {
+  showLoading("Test yaratilmoqda...");
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/create_test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "milliy" })
+    });
+    if (!res.ok) throw new Error("Server xatosi");
+    const data = await res.json();
+    currentTestId = data.test_id;
+    renderMilliyQuestionsForm();
+  } catch (err) {
+    alert("Xato: " + err.message);
+    renderAdminPanel();
+  }
+}
+
+function renderMilliyQuestionsForm() {
+  let html = `<h1>Milliy sertifikat — to‘g‘ri javoblar</h1>`;
+
+  for (let i = 1; i <= 32; i++) html += questionInput(i, "A B C D", true);
+  for (let i = 33; i <= 35; i++) html += questionInput(i, "A B C D E F G H", true);
+  for (let i = 36; i <= 45; i++) html += questionInput(i, "matn", false);
+
+  html += `
+    <h2>Test davomiyligi</h2>
+    <input id="hours"   type="number" min="0" max="5"   placeholder="soat"   value="2">
+    <input id="minutes" type="number" min="0" max="59"  placeholder="daqiqa" value="30">
+    <br><br>
+    <button onclick="saveMilliyAnswersAndDuration()">Saqlash va faollashtirish</button>
+  `;
+
+  document.getElementById("app").innerHTML = html;
+}
+
+function questionInput(num, variants, isClosed) {
+  let opts = '<option value="">Tanlang</option>';
+  if (isClosed) {
+    variants.split(" ").forEach(v => opts += `<option value="${v}">${v}</option>`);
+  }
+  return `
+    <div class="question-block">
+      <strong>Savol ${num}</strong><br>
+      To‘g‘ri javob: 
+      ${isClosed ? 
+        `<select id="ans${num}">${opts}</select>` :
+        `<input id="ans${num}" placeholder="to‘g‘ri javob matni">`
+      }
+      ${num <= 35 ? `
+        <br>Kitob varianti: 
+        <select id="var${num}">
+          <option value="A">1-kitob (A)</option>
+          <option value="B">2-kitob (B)</option>
+        </select>` : ""}
+    </div>
+  `;
+}
+
+async function saveMilliyAnswersAndDuration() {
+  showLoading("Javoblar saqlanmoqda...");
+
+  const answers = [];
+  for (let i = 1; i <= 45; i++) {
+    const ans = document.getElementById(`ans${i}`)?.value;
+    const varEl = document.getElementById(`var${i}`)?.value || "A";
+    if (!ans) return alert(`Savol ${i} uchun javob kiritilmagan!`);
+    answers.push({ number: i, correct_answer: ans, variant: i <= 35 ? varEl : null });
+  }
+
+  const hours   = parseInt(document.getElementById("hours").value)   || 0;
+  const minutes = parseInt(document.getElementById("minutes").value) || 0;
+
+  try {
+    for (const q of answers) {
+      await fetch(`${BACKEND_URL}/api/set_question/${currentTestId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(q)
+      });
     }
 
-    error.innerText = "";
-    testCodeValue = code;
+    await fetch(`${BACKEND_URL}/api/set_duration/${currentTestId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hours, minutes })
+    });
 
-    // Mini app orqali testni ochish
-    document.getElementById("code-box").classList.add("hidden");
-    document.getElementById("test-box").classList.remove("hidden");
-    generateTest();
+    alert(`Test yaratildi!\nKod: ${"TEST" + currentTestId.toString().padStart(6,"0")}`);
+    renderAdminPanel();
+  } catch (err) {
+    alert("Saqlashda xato: " + err.message);
+  }
 }
 
-/* ================= TEST ================= */
-function generateTest() {
-    const container = document.getElementById("test-container");
-    container.innerHTML = "";
-
-    const suffix = isAdminMode ? " (to‘g‘ri javob)" : "";
-
-    for (let i = 1; i <= 32; i++) createClosed(i, ["A", "B", "C", "D"], suffix);
-    for (let i = 33; i <= 35; i++) createClosed(i, ["A", "B", "C", "D", "E", "F"], suffix);
-    for (let i = 36; i <= 45; i++) createOpen(i, suffix);
+// Oddiy test (hozircha placeholder – kerak bo‘lsa to‘ldiramiz)
+function startCreateOddiy() {
+  document.getElementById("app").innerHTML = `
+    <h1>Oddiy test (hozircha qisman)</h1>
+    <p>Bu qismni keyinroq to‘ldirish mumkin</p>
+    <button onclick="renderAdminPanel()">Orqaga</button>
+  `;
 }
 
-function createClosed(num, options, suffix) {
-    const div = document.createElement("div");
-    div.className = "question";
-    div.innerHTML = `
-        <div class="q-title">${num}.${suffix}</div>
-        <div class="options">
-            ${options.map(o =>
-                `<div class="option" onclick="selectClosed(${num}, '${o}', this)">${o}</div>`
-            ).join("")}
-        </div>
-    `;
-    document.getElementById("test-container").appendChild(div);
+// Foydalanuvchi uchun
+function renderEnterCodePage() {
+  document.getElementById("app").innerHTML = `
+    <h1>Test ishlash</h1>
+    <input id="testcode" placeholder="Test kodini kiriting" maxlength="10">
+    <br><br>
+    <button onclick="enterTest()">Kirish</button>
+  `;
 }
 
-function selectClosed(num, value, el) {
-    answers[num] = value;
-    el.parentElement.querySelectorAll(".option").forEach(b => b.classList.remove("active"));
-    el.classList.add("active");
+async function enterTest() {
+  const code = document.getElementById("testcode").value.trim().toUpperCase();
+  if (code.length < 4) return alert("Kod juda qisqa!");
+
+  showLoading("Test tekshirilmoqda...");
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/enter_test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code })
+    });
+    if (!res.ok) throw new Error("Test topilmadi yoki muddati o‘tgan");
+    const data = await res.json();
+
+    questions = data.questions;
+    currentTestCode = code;
+    renderTestForm();
+  } catch (err) {
+    alert(err.message);
+    renderEnterCodePage();
+  }
 }
 
-function createOpen(num, suffix) {
-    const div = document.createElement("div");
-    div.className = "question";
-    div.innerHTML = `
-        <div class="q-title">${num}-savol (a)${suffix}</div>
-        <input class="text-answer" oninput="saveOpen(${num}, 'a', this.value)" placeholder="Javobingizni yozing">
+function renderTestForm() {
+  let html = `<h1>Javoblar</h1><p>Savollar PDF faylda</p>`;
 
-        <div class="q-title">${num}-savol (b)${suffix}</div>
-        <input class="text-answer" oninput="saveOpen(${num}, 'b', this.value)" placeholder="Javobingizni yozing">
-    `;
-    document.getElementById("test-container").appendChild(div);
-}
-
-function saveOpen(num, part, value) {
-    if (!answers[num]) answers[num] = {};
-    answers[num][part] = value.trim();
-}
-
-/* ================= SUBMIT ================= */
-function submitTest() {
-    const error = document.getElementById("testError");
-    error.innerText = "";
-
-    for (let i = 1; i <= 35; i++) {
-        if (!answers[i]) {
-            error.innerText = "❌ 1–35 savollarga javob bering";
-            error.scrollIntoView({ behavior: "smooth" });
-            return;
+  questions.forEach(q => {
+    html += `
+      <div class="question-block">
+        <strong>${q.number}-savol</strong><br>
+        ${q.type.includes("yopiq") ? 
+          `<select id="uans${q.number}">
+            <option value="">Tanlang</option>
+            ${q.type.includes("abcd") ? 
+              ["A","B","C","D"] : ["A","B","C","D","E","F","G","H"]}
+              .map(v => `<option value="${v}">${v}</option>`).join("")}
+          </select>` :
+          `<input id="uans${q.number}" placeholder="Javobingiz">`
         }
-    }
+      </div>
+    `;
+  });
 
-    for (let i = 36; i <= 45; i++) {
-        if (!answers[i] || !answers[i].a || !answers[i].b) {
-            error.innerText = "❌ 36–45 savollarni to‘liq to‘ldiring";
-            error.scrollIntoView({ behavior: "smooth" });
-            return;
-        }
-    }
-
-    const payload = {
-        test_code: testCodeValue,
-        answers: answers
-    };
-
-    if (isAdminMode) {
-        payload.mode = "create_test";
-    } else {
-        payload.action = "submit_test";
-    }
-
-    tg.sendData(JSON.stringify(payload));
-    tg.close();
+  html += `<button onclick="submitAnswers()">Topshirish</button>`;
+  document.getElementById("app").innerHTML = html;
 }
+
+async function submitAnswers() {
+  const answers = [];
+  questions.forEach(q => {
+    const val = document.getElementById(`uans${q.number}`)?.value?.trim();
+    if (val) answers.push({ question_number: q.number, answer: val });
+  });
+
+  if (answers.length < questions.length && !confirm("Ba'zi savollar bo‘sh. Davom ettirasizmi?")) {
+    return;
+  }
+
+  showLoading("Natija hisoblanmoqda...");
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/submit_answers/0`, {  // test_id ni backendda kod orqali aniqlash kerak
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(answers)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || "Xato");
+
+    let html = `
+      <div class="result">
+        <span class="green">To‘g‘ri: ${result.correct}</span><br>
+        <span class="red">Xato: ${result.wrong}</span>
+      </div>
+      <h3>Batafsil natija:</h3>
+    `;
+    result.details?.forEach(d => {
+      html += `<p>${d.number}-savol → ${d.status === "tog'ri" ? "✅ To‘g‘ri" : "❌ Xato"}</p>`;
+    });
+    document.getElementById("app").innerHTML = html + `<button onclick="renderEnterCodePage()">Boshqa test</button>`;
+  } catch (err) {
+    alert("Xato: " + err.message);
+  }
+}
+
+function viewStats() {
+  alert("Statistika ko‘rish funksiyasi hali to‘liq ulanmagan.\nBackendda /api/stats endpoint kerak.");
+}
+
+// Ishga tushirish
+init();
