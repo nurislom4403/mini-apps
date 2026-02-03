@@ -1,90 +1,155 @@
 const tg = window.Telegram.WebApp;
-tg.ready();
 tg.expand();
+tg.ready(); // Qo'shimcha: WebApp tayyorligini bildirish
 
-let currentTest = null;
-let isAdmin = false;
+let answers = {};
+let testCodeValue = "";
+let isAdminMode = false;
 
-// Mini App boshlanishi
-function init() {
-  const user = tg.initDataUnsafe.user || {};
-  isAdmin = user.username === "SIZNING_ADMIN_USERNAME"; // ← admin username o'zgartiring
-  if(isAdmin){ renderAdminPanel(); }
-  else{ renderUserTestEntry(); }
+// Valid kodlar — har ikki rejimda ham mavjud bo'lishi kerak
+const validCodes = ["MT-2025-01", "MT-2025-02"]; // Keyin backenddan keladi
+
+// URL parametrlaridan rejimni olish (masalan, ?mode=admin)
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('mode') === 'admin') {
+    isAdminMode = true;
+    document.getElementById('code-box').classList.add('hidden');
+    document.getElementById('admin-code-box').classList.remove('hidden');
+    document.getElementById('test-box').classList.remove('hidden');
+    document.getElementById('submitButton').innerText = 'Saqlash';
+    
+    generateNewCode();   // Yangi kod generatsiya
+    generateTest();      // Testni yaratish
+} else {
+    // User rejimi — kod kiritish sahifasi ko'rinadi
+    // Inputga avto-fokus qo'yish (telefonda klaviatura chiqishi uchun)
+    setTimeout(() => {
+        const input = document.getElementById('testCode');
+        if (input) input.focus();
+    }, 600);
 }
 
-// Admin panel
-function renderAdminPanel(){
-  document.getElementById("app").innerHTML = `
-    <h1>Admin Panel</h1>
-    <h2>Test yaratish</h2>
-    <button onclick="startCreateTest('milliy')">Milliy test</button>
-    <button onclick="startCreateTest('oddiy')">Oddiy test</button>
-  `;
+function generateNewCode() {
+    const year = new Date().getFullYear();
+    const randomNum = Math.floor(100 + Math.random() * 900);
+    testCodeValue = `MT-${year}-${randomNum.toString().padStart(2, '0')}`;
+    document.getElementById('generatedCode').value = testCodeValue;
 }
 
-// Test yaratish (admin)
-function startCreateTest(type){
-  currentTest = {type:type, questions:[], duration:{hours:2, minutes:30}};
-  let html = `<h2>${type.toUpperCase()} — Javoblarni kiriting</h2>`;
-  if(type==='milliy'){
-    for(let i=1;i<=45;i++){
-      let variants = (i<=32)?"A B C D":(i<=35)?"A B C D E F G H":"";
-      html+=questionInput(i,variants,i<=35);
+function checkCode() {
+    const code = document.getElementById("testCode").value.trim().toUpperCase();
+    const error = document.getElementById("codeError");
+    
+    if (!code) {
+        error.innerText = "❌ Test kodini kiriting";
+        return;
     }
-  }else{
-    let num = parseInt(prompt("Nechta savol yaratilsin?","10"))||10;
-    for(let i=1;i<=num;i++){
-      html+=questionInput(i,"A B C D",true);
+    
+    // Kodni katta harfga aylantirib tekshirish (foydalanuvchi xato yozmasin)
+    if (!validCodes.includes(code)) {
+        error.innerText = "❌ Bunday test kodi mavjud emas";
+        return;
     }
-  }
-  html+=`<h3>Vaqt (soat:daqiqa)</h3>
-    <input id="hours" type="number" min="0" max="5" value="2">
-    <input id="minutes" type="number" min="0" max="59" value="30">
-    <br><br><button onclick="saveTest()">Testni yuborish</button>`;
-  document.getElementById("app").innerHTML = html;
+    
+    error.innerText = "";
+    testCodeValue = code;
+    document.getElementById("code-box").classList.add("hidden");
+    document.getElementById("test-box").classList.remove("hidden");
+    generateTest();
 }
 
-// Savol input HTML
-function questionInput(num,variants,isClosed){
-  let opts="";
-  if(isClosed){ variants.split(" ").forEach(v=>{opts+=`<option value="${v}">${v}</option>`;}); }
-  return `<div class="question-block">
-    <strong>Savol ${num}</strong><br>
-    ${isClosed?`<select id="ans${num}">${opts}</select>`:`<input id="ans${num}" placeholder="javob">`}
-  </div>`;
+function generateTest() {
+    const container = document.getElementById("test-container");
+    container.innerHTML = "";
+    const titleSuffix = isAdminMode ? " (to'g'ri javob)" : "";
+
+    // 1–32 savol: A–D variantli
+    for (let i = 1; i <= 32; i++) {
+        createClosed(i, ["A", "B", "C", "D"], titleSuffix);
+    }
+    
+    // 33–35 savol: A–F variantli
+    for (let i = 33; i <= 35; i++) {
+        createClosed(i, ["A", "B", "C", "D", "E", "F"], titleSuffix);
+    }
+    
+    // 36–45 ochiq savollar (a va b qismli)
+    for (let i = 36; i <= 45; i++) {
+        createOpen(i, titleSuffix);
+    }
 }
 
-// Testni botga yuborish
-function saveTest(){
-  const hours=parseInt(document.getElementById("hours").value)||0;
-  const minutes=parseInt(document.getElementById("minutes").value)||0;
-  currentTest.duration={hours,minutes};
-  currentTest.questions=[];
-  const total = document.querySelectorAll(".question-block").length;
-  for(let i=1;i<=total;i++){
-    const el=document.getElementById(`ans${i}`);
-    currentTest.questions.push({number:i,answer:el.value});
-  }
-  tg.sendData(JSON.stringify({action:"create_test",data:currentTest}));
-  document.getElementById("app").innerHTML="<h2>Test botga yuborildi ✅</h2>";
+function createClosed(num, options, suffix) {
+    const div = document.createElement("div");
+    div.className = "question";
+    div.innerHTML = `
+        <div class="q-title">${num}.${suffix}</div>
+        <div class="options">
+            ${options.map(o => 
+                `<div class="option" onclick="selectClosed(${num}, '${o}', this)">${o}</div>`
+            ).join("")}
+        </div>
+    `;
+    document.getElementById("test-container").appendChild(div);
 }
 
-// Foydalanuvchi test kiritish
-function renderUserTestEntry(){
-  document.getElementById("app").innerHTML=`
-    <h1>Testga kirish</h1>
-    <input id="testcode" placeholder="Test kodi">
-    <br><br><button onclick="enterTest()">Boshlash</button>
-  `;
+function selectClosed(num, value, el) {
+    answers[num] = value;
+    // Faqat shu savol ichidagi variantlarni tozalash
+    el.parentElement.querySelectorAll(".option").forEach(b => b.classList.remove("active"));
+    el.classList.add("active");
 }
 
-// Testga kirish (foydalanuvchi)
-function enterTest(){
-  const code = document.getElementById("testcode").value.trim();
-  if(!code){ alert("Kod kiriting!"); return;}
-  tg.sendData(JSON.stringify({action:"enter_test",code:code}));
-  document.getElementById("app").innerHTML="<h2>Test kodi botga yuborildi ✅</h2>";
+function createOpen(num, suffix) {
+    const div = document.createElement("div");
+    div.className = "question";
+    div.innerHTML = `
+        <div class="q-title">${num}-savol (a)${suffix}</div>
+        <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'a', this.value)">
+        
+        <div class="q-title">${num}-savol (b)${suffix}</div>
+        <input class="text-answer" placeholder="Javobingizni yozing" oninput="saveOpen(${num}, 'b', this.value)">
+    `;
+    document.getElementById("test-container").appendChild(div);
 }
 
-init();
+function saveOpen(num, part, value) {
+    if (!answers[num]) answers[num] = {};
+    answers[num][part] = value.trim();
+}
+
+function submitTest() {
+    const error = document.getElementById("testError");
+    error.innerText = "";
+
+    // 1-35 savollar to'ldirilganmi?
+    for (let i = 1; i <= 35; i++) {
+        if (!answers[i]) {
+            error.innerText = "❌ 1-35 savollarga javob bering";
+            error.scrollIntoView({ behavior: "smooth" });
+            return;
+        }
+    }
+    
+    // 36-45 savollar to'ldirilganmi?
+    for (let i = 36; i <= 45; i++) {
+        if (!answers[i] || !answers[i].a?.trim() || !answers[i].b?.trim()) {
+            error.innerText = "❌ 36-45 savollarni to'liq to'ldiring";
+            error.scrollIntoView({ behavior: "smooth" });
+            return;
+        }
+    }
+
+    // Ma'lumotlarni botga yuborish
+    const data = {
+        test_code: testCodeValue,
+        answers: answers
+    };
+    
+    if (isAdminMode) {
+        data.mode = 'create_test';
+    }
+    
+    tg.sendData(JSON.stringify(data));
+    tg.close();
+}
